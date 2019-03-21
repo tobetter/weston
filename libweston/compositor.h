@@ -944,6 +944,11 @@ struct weston_compositor {
 	/* Whether to let the compositor run without any input device. */
 	bool require_input;
 
+        void *shell;
+
+        void (*compositor_backend_dump)(struct weston_compositor *compositor);
+        void (*shell_backend_dump)(struct weston_compositor *compositor);
+        void (*renderer_backend_dump)(struct weston_compositor *compositor);
 };
 
 struct weston_buffer {
@@ -1943,6 +1948,9 @@ weston_pending_output_coldplug(struct weston_compositor *compositor);
 
 struct weston_output *
 weston_output_from_resource(struct wl_resource *resource);
+
+void
+weston_dump_all(struct weston_compositor *compositor);
 
 #ifdef  __cplusplus
 }

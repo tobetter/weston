@@ -221,6 +221,8 @@ struct desktop_shell {
 	char *client;
 
 	struct timespec startup_time;
+
+        void (*input_panel_dump)(struct desktop_shell *shell);
 };
 
 struct weston_output *

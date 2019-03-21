@@ -816,6 +816,31 @@ config_init_to_defaults(struct weston_fbdev_backend_config *config)
 	config->device = "/dev/fb0"; /* default frame buffer */
 }
 
+static void
+weston_backend_dump(struct weston_compositor *compositor)
+{
+        fprintf(stderr, "weston dump compositor backend.\n");
+        struct weston_output *output;
+        wl_list_for_each(output, &compositor->output_list, link) {
+                fprintf(stderr, "  output:%p, name:%s, state:%s\n", output, output->name, output->enabled?"enabled":"disabled");
+                struct fbdev_output *fbout = to_fbdev_output(output);
+                fprintf(stderr, "    position:        (%d, %d)\n", output->x, output->y);
+                fprintf(stderr, "    size:            %dx%d\n", fbout->mode.width, fbout->mode.height);
+                fprintf(stderr, "    scale:           %d\n", output->scale);
+                fprintf(stderr, "    flags:           %u\n", fbout->mode.flags);
+                fprintf(stderr, "    refresh:         %u(HZ)\n", fbout->mode.refresh/1000);
+                fprintf(stderr, "    resolution:      %ux%u\n", fbout->fb_info.x_resolution, fbout->fb_info.y_resolution);
+                fprintf(stderr, "    mm:              %ux%u\n", fbout->fb_info.width_mm, fbout->fb_info.height_mm);
+                fprintf(stderr, "    bits_per_pixel:  %u\n", fbout->fb_info.bits_per_pixel);
+                //fprintf(stderr, "    refresh_rate:    %u(ms)\n", fbout->fb_info.refresh_rate/1000);
+                fprintf(stderr, "    buffer_length:   0x%x\n", fbout->fb_info.buffer_length);
+                fprintf(stderr, "    line_length:     0x%x\n", fbout->fb_info.line_length);
+                fprintf(stderr, "    pixel_format:    0x%x\n", fbout->fb_info.pixel_format);
+        }
+        fprintf(stderr, "\n");
+        return;
+}
+
 WL_EXPORT int
 weston_backend_init(struct weston_compositor *compositor,
 		    struct weston_backend_config *config_base)
@@ -829,6 +854,7 @@ weston_backend_init(struct weston_compositor *compositor,
 		weston_log("fbdev backend config structure is invalid\n");
 		return -1;
 	}
+        compositor->compositor_backend_dump = weston_backend_dump;
 
 	config_init_to_defaults(&config);
 	memcpy(&config, config_base, config_base->struct_size);

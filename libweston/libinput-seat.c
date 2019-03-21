@@ -149,6 +149,9 @@ udev_input_process_event(struct libinput_event *event)
 		libinput_event_get_device(event);
 	struct udev_input *input = libinput_get_user_data(libinput);
 	int handled = 1;
+        struct libinput_event_keyboard *keyboard_event;
+        uint32_t key;
+        int key_state;
 
 	switch (libinput_event_get_type(event)) {
 	case LIBINPUT_EVENT_DEVICE_ADDED:
@@ -157,6 +160,15 @@ udev_input_process_event(struct libinput_event *event)
 	case LIBINPUT_EVENT_DEVICE_REMOVED:
 		device_removed(input, libinput_device);
 		break;
+        case LIBINPUT_EVENT_KEYBOARD_KEY:
+                keyboard_event = libinput_event_get_keyboard_event(event);
+                key = libinput_event_keyboard_get_key(keyboard_event);
+                key_state = libinput_event_keyboard_get_key_state(keyboard_event);
+                if ((key_state == LIBINPUT_KEY_STATE_RELEASED)
+                        && (key == KEY_F8)) {
+                        //weston_log("seat key:%d, state:%d\n", key, key_state);
+                        weston_dump_all(input->compositor);
+                }
 	default:
 		handled = 0;
 	}

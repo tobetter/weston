@@ -5646,3 +5646,130 @@ weston_compositor_load_xwayland(struct weston_compositor *compositor)
 		return -1;
 	return 0;
 }
+
+static char *
+weston_compositor_layer_position_name(enum weston_layer_position position)
+{
+        char str[32] = {0};
+
+        switch (position) {
+        case WESTON_LAYER_POSITION_HIDDEN:
+                return "hidden";
+        case WESTON_LAYER_POSITION_BACKGROUND:
+                return "background";
+        case WESTON_LAYER_POSITION_BOTTOM_UI:
+                return "bottom_ui";
+        case WESTON_LAYER_POSITION_NORMAL:
+                return "normal";
+        case WESTON_LAYER_POSITION_UI:
+                return "ui";
+        case WESTON_LAYER_POSITION_FULLSCREEN:
+                return "fullscreen";
+        case WESTON_LAYER_POSITION_TOP_UI:
+                return "top_ui";
+        case WESTON_LAYER_POSITION_LOCK:
+                return "lock";
+        case WESTON_LAYER_POSITION_CURSOR:
+                return "cursor";
+        case WESTON_LAYER_POSITION_FADE:
+                return "fade";
+        default:
+                snprintf(str, 32, "unknown(0x%x)", position);
+                return strdup(str);
+        }
+}
+
+WL_EXPORT void
+weston_dump_all(struct weston_compositor *compositor)
+{
+        FILE *consoleFile = freopen("/dev/ttyS0", "w", stderr);
+
+        fprintf(stderr, "weston dump all layers.\n");
+        struct weston_view *view;
+        struct weston_layer *layer;
+        wl_list_for_each(layer, &compositor->layer_list, link) {
+                fprintf(stderr, "  layer:%p, position:%s\n", layer, weston_compositor_layer_position_name(layer->position));
+                wl_list_for_each(view, &layer->view_list.link, layer_link.link) {
+                        fprintf(stderr, "    view:%p (%4.1f,%4.1f)\n",
+                                view, view->geometry.x, view->geometry.y);
+                        fprintf(stderr, "    parent:%p\n", view->parent_view);
+                        fprintf(stderr, "    on plane:%p\n", view->plane);
+                        fprintf(stderr, "    surface:%p (%d,%d)\n",
+                                view->surface, view->surface->width, view->surface->height);
+                        fprintf(stderr, "    resource:%p\n", view->surface->resource);
+                }
+        }
+        fprintf(stderr, "\n");
+
+        fprintf(stderr, "weston dump all planes.\n");
+        struct weston_plane *plane;
+        wl_list_for_each(plane, &compositor->plane_list, link) {
+                fprintf(stderr, "  plane:%p %s\n", plane,
+                        (plane==(&compositor->primary_plane))?"primary":"");
+        }
+        fprintf(stderr, "\n");
+
+#if 0
+        struct weston_layer *cursor_layer = &compositor->cursor_layer;
+        fprintf(stderr, "cursor layer:%p\n", cursor_layer);
+        wl_list_for_each(view, &cursor_layer->view_list.link, layer_link.link) {
+                fprintf(stderr, "    view:%p (%4.1f,%4.1f), parent_view:%p\n",
+                        view, view->geometry.x, view->geometry.y, view->parent_view);
+                fprintf(stderr, "    surface:%p (%dx%d) , resource:%p\n",
+                        view->surface, view->surface->width, view->surface->height, view->surface->resource);
+        }
+        fprintf(stderr, "\n");
+#endif
+
+        fprintf(stderr, "weston dump all seats.\n");
+        struct weston_seat *seat;
+        wl_list_for_each(seat, &compositor->seat_list, link) {
+                struct weston_pointer *pointer = weston_seat_get_pointer(seat);
+                if (pointer == NULL) {
+                        fprintf(stderr, "  weston_pointer (null)\n");
+                } else {
+                        fprintf(stderr, "  weston_pointer:%p xy(%d %d)\n",
+                                pointer, pointer->x, pointer->y);
+                        fprintf(stderr, "    weston_view focus:%p sprite:%p\n", pointer->focus, pointer->sprite);
+                        struct weston_pointer_client *pointer_client;
+                        wl_list_for_each(pointer_client, &pointer->pointer_clients, link) {
+                                fprintf(stderr, "    pointer_client %p\n", pointer_client);
+                                if (pointer_client) {
+                                        struct wl_client *client = pointer_client->client;
+                                        fprintf(stderr, "    wl_client %p\n", client);
+                                        /*
+                                        if (client) {
+                                                struct wl_resource *resource = client->display_resource;
+                                                fprintf(stderr, "        wl_resource %p\n", resource);
+                                                if (resource) {
+                                                        struct weston_surface *surface = wl_resource_get_user_data(resource);
+                                                        fprintf(stderr, "         weston_surface %p\n", surface);
+                                                }
+                                        }*/
+                                }
+                        }
+                }
+                struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
+                if (keyboard == NULL) {
+                        fprintf(stderr, "  weston_keyboard (null)\n");
+                } else {
+                        fprintf(stderr, "  weston_keyboard:%p\n", keyboard);
+                        fprintf(stderr, "    weston_surface focus:%p\n", keyboard->focus);
+                }
+                struct weston_touch *touch = weston_seat_get_touch(seat);
+                fprintf(stderr, "  weston_touch:%p\n", touch);
+                if (touch != NULL) {
+                        fprintf(stderr, "    weston_view focus:%p\n", touch->focus);
+                }
+        }
+        fprintf(stderr, "\n");
+
+        if (compositor->compositor_backend_dump)
+                compositor->compositor_backend_dump(compositor);
+
+        if (compositor->compositor_backend_dump)
+                compositor->shell_backend_dump(compositor);
+
+        fclose(consoleFile);
+        return;
+}

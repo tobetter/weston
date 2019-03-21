@@ -3698,6 +3698,160 @@ config_init_to_defaults(struct weston_drm_backend_config *config)
 {
 }
 
+static void
+weston_backend_dump(struct weston_compositor *compositor)
+{
+        struct weston_output *output;
+        int i;
+
+        fprintf(stderr, "weston dump compositor backend.\n");
+        wl_list_for_each(output, &compositor->output_list, link) {
+                fprintf(stderr, "  output:%p, name:%s, state:%s\n", output, output->name, output->enabled?"enabled":"disabled");
+                struct drm_output *drmout = to_drm_output(output);
+               fprintf(stderr, "    position:        (%d, %d)\n", output->x, output->y);
+                fprintf(stderr, "    size:            (%d, %d)\n", output->width, output->height);
+                fprintf(stderr, "    scale:           %d\n", output->scale);
+               fprintf(stderr, "    crtc_id:         %u(pipe:%d)\n", drmout->crtc_id, drmout->pipe);
+                fprintf(stderr, "    connector_id:    %u\n", drmout->connector_id);
+                fprintf(stderr, "      connector_type:     %u\n", drmout->connector->connector_type);
+                fprintf(stderr, "      connector_type_id:  %u\n", drmout->connector->connector_type_id);
+                switch (drmout->connector->connection) {
+                        case DRM_MODE_CONNECTED:
+                                fprintf(stderr, "      connector_state:    connected\n");
+                                break;
+                        case DRM_MODE_DISCONNECTED:
+                                fprintf(stderr, "      connector_state:    disconnected\n");
+                                break;
+                        default:
+                                fprintf(stderr, "      connector_state:    unknown\n");
+                                break;
+                }
+                fprintf(stderr, "      count_modes:        %d\n", drmout->connector->count_modes);
+                fprintf(stderr, "        index name clock hdisplay hsync_start hsync_end htotal hskew"
+                        "vdisplay vsync_start vsync_end vtotal vscan vrefresh flags type\n");
+                for (i = 0; i < drmout->connector->count_modes; i++) {
+                        drmModeModeInfo *info = &drmout->connector->modes[i];
+                        fprintf(stderr, "        %d %s %u %d %d %d %d %d %d %d %d %d %d %u %u %u\n",
+                                i, info->name, info->clock,
+                                info->hdisplay, info->hsync_start, info->hsync_end, info->htotal, info->hskew,
+                                info->vdisplay, info->vsync_start, info->vsync_end, info->vtotal, info->vscan,
+                                info->vrefresh, info->flags, info->type);
+                }
+                if (output->native_mode != NULL) {
+                        fprintf(stderr, "      native mode info\n");
+                        fprintf(stderr, "        size:      (%d, %d)\n", output->native_mode->width, output->native_mode->height);
+                        fprintf(stderr, "        refresh:   %u\n", output->native_mode->refresh/1000);
+                        fprintf(stderr, "        flags:     %u\n", output->native_mode->flags);
+                        fprintf(stderr, "        scale:     %d\n", output->native_scale);
+                }
+                if (output->current_mode != NULL) {
+                        fprintf(stderr, "      current mode info\n");
+                        fprintf(stderr, "        size:      (%d, %d)\n", output->current_mode->width, output->current_mode->height);
+                        fprintf(stderr, "        refresh:   %u\n", output->current_mode->refresh/1000);
+                        fprintf(stderr, "        flags:     %u\n", output->current_mode->flags);
+                        fprintf(stderr, "        scale:     %d\n", output->current_scale);
+                }
+                if (output->original_mode != NULL) {
+                        fprintf(stderr, "      original mode info\n");
+                        fprintf(stderr, "        size:      (%d, %d)\n", output->original_mode->width, output->original_mode->height);
+                        fprintf(stderr, "        refresh:   %u\n", output->original_mode->refresh/1000);
+                        fprintf(stderr, "        flags:     %u\n", output->original_mode->flags);
+                        fprintf(stderr, "        scale:     %d\n", output->original_scale);
+                }
+
+                fprintf(stderr, "    encoder_id(connected):     %u\n", drmout->connector->encoder_id);
+                fprintf(stderr, "      count_encoders:          %d\n", drmout->connector->count_encoders);
+                for (i = 0; i < drmout->connector->count_encoders; i++) {
+                        fprintf(stderr, "         encoder_id:           %u\n", drmout->connector->encoders[i]);
+                }
+
+                fprintf(stderr, "    subpixel:       %d\n", drmout->connector->subpixel);
+                fprintf(stderr, "    edid data:      '%s', '%s', '%s'\n",
+                        drmout->edid.pnp_id,
+                        drmout->edid.monitor_name,
+                        drmout->edid.serial_number);
+                switch (drmout->dpms) {
+                        case WESTON_DPMS_ON:
+                                fprintf(stderr, "    dpms_state:     on\n");
+                                break;
+                        case WESTON_DPMS_STANDBY:
+                                fprintf(stderr, "    dpms_state:      standby\n");
+                                break;
+                        case WESTON_DPMS_SUSPEND:
+                                fprintf(stderr, "    dpms_state:      suspend\n");
+                                break;
+                        case WESTON_DPMS_OFF:
+                                fprintf(stderr, "    dpms_state:      off\n");
+                                break;
+                        default:
+                                fprintf(stderr, "    dpms_state:      unknown\n");
+                                break;
+                }
+
+                fprintf(stderr, "    gbm_surface:    %p\n", drmout->gbm_surface);
+                fprintf(stderr, "    gbm_format:     0x%x\n", drmout->gbm_format);
+
+                fprintf(stderr, "    current_cursor: %d\n", drmout->current_cursor);
+                fprintf(stderr, "    cursor_fb0:     %p\n", drmout->gbm_cursor_fb[0]);
+                fprintf(stderr, "    cursor_fb1:     %p\n", drmout->gbm_cursor_fb[1]);
+                fprintf(stderr, "    cursor_view:    %p\n", drmout->cursor_view);
+
+                fprintf(stderr, "    fb_plane:       %p\n", &drmout->fb_plane);
+                fprintf(stderr, "    cursor_plane:   %p\n", &drmout->cursor_plane);
+
+                fprintf(stderr, "    fb_current:     %p\n", drmout->fb_current);
+                if (drmout->fb_current) {
+                        fprintf(stderr, "      type:%d, fb_id:%u, stride:%u, handle:%u, size:%u\n",
+                                drmout->fb_current->type,
+                                drmout->fb_current->fb_id,
+                                drmout->fb_current->stride,
+                                drmout->fb_current->handle,
+                                drmout->fb_current->size);
+                        fprintf(stderr, "      width:%d, height:%d, fd:%d\n",
+                                drmout->fb_current->width,
+                                drmout->fb_current->height,
+                                drmout->fb_current->fd);
+                        fprintf(stderr, "      bo:%p, gbm_surface:%p\n",
+                                drmout->fb_current->bo,
+                                drmout->fb_current->gbm_surface);
+                }
+                fprintf(stderr, "    fb_last:        %p\n", drmout->fb_last);
+                if (drmout->fb_last) {
+                        fprintf(stderr, "      type:%d, fb_id:%u, stride:%u, handle:%u, size:%u\n",
+                                drmout->fb_last->type,
+                                drmout->fb_last->fb_id,
+                                drmout->fb_last->stride,
+                                drmout->fb_last->handle,
+                                drmout->fb_last->size);
+                        fprintf(stderr, "      width:%d, height:%d, fd:%d\n",
+                                drmout->fb_last->width,
+                                drmout->fb_last->height,
+                                drmout->fb_last->fd);
+                        fprintf(stderr, "      bo:%p, gbm_surface:%p\n",
+                                drmout->fb_last->bo,
+                                drmout->fb_last->gbm_surface);
+                }
+                fprintf(stderr, "    fb_pending:     %p\n", drmout->fb_pending);
+                if (drmout->fb_pending) {
+                        fprintf(stderr, "      type:%d, fb_id:%u, stride:%u, handle:%u, size:%u\n",
+                                drmout->fb_pending->type,
+                                drmout->fb_pending->fb_id,
+                                drmout->fb_pending->stride,
+                                drmout->fb_pending->handle,
+                                drmout->fb_pending->size);
+                        fprintf(stderr, "      width:%d, height:%d, fd:%d\n",
+                                drmout->fb_pending->width,
+                                drmout->fb_pending->height,
+                                drmout->fb_pending->fd);
+                        fprintf(stderr, "      bo:%p, gbm_surface:%p\n",
+                                drmout->fb_pending->bo,
+                                drmout->fb_pending->gbm_surface);
+                }
+        }
+        fprintf(stderr, "\n");
+        return;
+}
+
 WL_EXPORT int
 weston_backend_init(struct weston_compositor *compositor,
 		    struct weston_backend_config *config_base)
@@ -3711,6 +3865,7 @@ weston_backend_init(struct weston_compositor *compositor,
 		weston_log("drm backend config structure is invalid\n");
 		return -1;
 	}
+        compositor->compositor_backend_dump = weston_backend_dump;
 
 	config_init_to_defaults(&config);
 	memcpy(&config, config_base, config_base->struct_size);

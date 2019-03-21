@@ -4942,6 +4942,125 @@ handle_seat_created(struct wl_listener *listener, void *data)
 	create_shell_seat(seat);
 }
 
+static char *
+wet_shell_panel_position_name(enum weston_desktop_shell_panel_position panel_position)
+{
+        char str[32] = {0};
+
+        switch (panel_position) {
+        case WESTON_DESKTOP_SHELL_PANEL_POSITION_TOP:
+                return "top";
+        case WESTON_DESKTOP_SHELL_PANEL_POSITION_BOTTOM:
+                return "bottom";
+        case WESTON_DESKTOP_SHELL_PANEL_POSITION_LEFT:
+                return "left";
+        case WESTON_DESKTOP_SHELL_PANEL_POSITION_RIGHT:
+                return "right";
+        default:
+                snprintf(str, 32, "unknown(0x%x)", panel_position);
+                return strdup(str);
+        }
+}
+
+static void
+wet_shell_layer_dump(struct weston_layer *layer)
+{
+        struct weston_view *view;
+        struct shell_surface *shsurf;
+        char d[512];
+
+        wl_list_for_each(view, &layer->view_list.link, layer_link.link) {
+                fprintf(stderr, "    view:%p\n", view);
+                fprintf(stderr, "      parent:%p\n", view->parent_view);
+                fprintf(stderr, "      surface:%p\n", view->surface);
+                if (view->surface != NULL) {
+                        if (!view->surface->get_label || view->surface->get_label(view->surface, d, sizeof(d)) < 0)
+                                d[0] = '\0';
+                        if (d[0])
+                                fprintf(stderr, "        \"%s\"\n", d);
+                        shsurf = get_shell_surface(view->surface);
+                        fprintf(stderr, "      shell surface:%p\n", shsurf);
+                        if (shsurf != NULL) {
+                                fprintf(stderr, "        fullscreen:%s maximized:%s lowered:%s\n",
+                                        shsurf->state.fullscreen?"enable":"disable",
+                                        shsurf->state.maximized?"enable":"disable",
+                                        shsurf->state.lowered?"enable":"disable");
+                        }
+                }
+                fprintf(stderr, "      alpha:%f\n", view->alpha);
+                fprintf(stderr, "      x:%f\n", view->geometry.x);
+                fprintf(stderr, "      y:%f\n", view->geometry.y);
+        }
+}
+
+static void
+wet_shell_dump(struct weston_compositor *ec)
+{
+        fprintf(stderr, "weston dump shell backend.\n");
+        struct desktop_shell *shell = (struct desktop_shell*)(ec->shell);
+
+        fprintf(stderr, "  layer:%p, fullscreen\n", &shell->fullscreen_layer);
+        wet_shell_layer_dump(&shell->fullscreen_layer);
+
+        fprintf(stderr, "  layer:%p, panel\n", &shell->panel_layer);
+        fprintf(stderr, "    panel_position:%s\n", wet_shell_panel_position_name(shell->panel_position));
+        wet_shell_layer_dump(&shell->panel_layer);
+
+        fprintf(stderr, "  layer:%p, background\n", &shell->background_layer);
+        wet_shell_layer_dump(&shell->background_layer);
+
+        fprintf(stderr, "  layer:%p, lock\n", &shell->lock_layer);
+        wet_shell_layer_dump(&shell->lock_layer);
+
+        fprintf(stderr, "  layer:%p, input_panel\n", &shell->input_panel_layer);
+        if (shell->input_panel_dump) {
+                shell->input_panel_dump(shell);
+        }
+        wet_shell_layer_dump(&shell->input_panel_layer);
+
+        fprintf(stderr, "  layer:%p, minimized\n", &shell->minimized_layer);
+        wet_shell_layer_dump(&shell->minimized_layer);
+
+        fprintf(stderr, "  workspace total num:%u, current index:%u\n",
+                shell->workspaces.num, shell->workspaces.current);
+
+        struct workspace *ws;
+        for (unsigned int i = 0; i < shell->workspaces.num; i++) {
+                ws = get_workspace(shell, i);
+                fprintf(stderr, "  layer:%p (workspace index:%u)\n", &ws->layer, i);
+                wet_shell_layer_dump(&ws->layer);
+                if (ws->fsurf_front != NULL) {
+                        fprintf(stderr, "    front focus weston_surface:%p\n", ws->fsurf_front->surface);
+                        fprintf(stderr, "    front focus weston_view:%p\n", ws->fsurf_front->view);
+                } else {
+                        fprintf(stderr, "    front focus:%p\n", ws->fsurf_front);
+                }
+                if (ws->fsurf_back != NULL) {
+                        fprintf(stderr, "    back  focus weston_surface:%p\n", ws->fsurf_back->surface);
+                        fprintf(stderr, "    back  focus weston_view:%p\n", ws->fsurf_back->view);
+                } else {
+                        fprintf(stderr, "    back  focus:%p\n", ws->fsurf_back);
+                }
+
+                struct focus_state *state;
+                wl_list_for_each(state, &ws->focus_list, link) {
+                        if (state != NULL)
+                                fprintf(stderr, "      focus state: weston_seat:%p, keyboard_focus weston_surface:%p\n",
+                                        state->seat, state->keyboard_focus);
+                }
+        }
+
+        fprintf(stderr, "  grab_surface:%p\n", shell->grab_surface);
+        fprintf(stderr, "  text_input_surface:%p\n", shell->text_input.surface);
+
+        fprintf(stderr, "  desktop shell [%s] [%s] [%s]\n",
+                shell->locked?"locked":"unlock",
+                shell->showing_input_panels?"showing input panels":"hiding input panels",
+                shell->prepare_event_sent?"prepare event sent":"unprepare event sent");
+
+        fprintf(stderr, "\n");
+}
+
 WL_EXPORT int
 wet_shell_init(struct weston_compositor *ec,
 	       int *argc, char *argv[])
@@ -4956,7 +5075,10 @@ wet_shell_init(struct weston_compositor *ec,
 	if (shell == NULL)
 		return -1;
 
+	ec->shell_backend_dump = wet_shell_dump;
+
 	shell->compositor = ec;
+	ec->shell = shell;
 
 	shell->destroy_listener.notify = shell_destroy;
 	wl_signal_add(&ec->destroy_signal, &shell->destroy_listener);

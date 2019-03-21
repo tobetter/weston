@@ -377,6 +377,18 @@ bind_input_panel(struct wl_client *client,
 			       "interface object already bound");
 }
 
+static void
+input_panel_dump(struct desktop_shell *shell)
+{
+        struct input_panel_surface *ipsurf, *next;
+        wl_list_for_each_safe(ipsurf, next, &shell->input_panel.surfaces, link) {
+                fprintf(stderr, "    weston_surface: %p\n", ipsurf->surface);
+                fprintf(stderr, "    weston_view:    %p\n", ipsurf->view);
+                fprintf(stderr, "    weston_output:  %p\n", ipsurf->output);
+                fprintf(stderr, "    panel:          %s\n", ipsurf->panel==0?"toplevel":"overlay");
+        }
+}
+
 void
 input_panel_destroy(struct desktop_shell *shell)
 {
@@ -389,6 +401,7 @@ input_panel_setup(struct desktop_shell *shell)
 {
 	struct weston_compositor *ec = shell->compositor;
 
+	shell->input_panel_dump = input_panel_dump;
 	shell->show_input_panel_listener.notify = show_input_panels;
 	wl_signal_add(&ec->show_input_panel_signal,
 		      &shell->show_input_panel_listener);
